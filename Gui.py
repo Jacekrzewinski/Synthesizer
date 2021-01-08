@@ -3,7 +3,9 @@ from matplotlib.figure import Figure
 from tkinter import *
 from tkinter import ttk
 import matplotlib
-
+import pyaudio
+import numpy as np
+from mpmath import *
 matplotlib.use("TkAgg")
 
 
@@ -13,6 +15,7 @@ class Synthetizer(Frame):
         self.parent = parent
         self.pack()
         self.make_widgets()
+        self.BPM = 120
 
     def make_widgets(self):
         self.winfo_toplevel().title("Syntetizer GUI")
@@ -182,6 +185,8 @@ class Synthetizer(Frame):
             10: "Ais",
             11: "H",
         }
+        self.playaudio(key,O)
+
         print(switcher.get(key) + str(O))
 
     def paintADSR(self):
@@ -199,13 +204,70 @@ class Synthetizer(Frame):
         self.canvas.draw()
 
     def fbutton1(self):
-        print(self.FreqModOption.get())
+        print(self.BPM)
 
     def fbutton2(self):
         print('button2')
 
+    def waveType(self, fs, duration, f):
+        print(self.BaseSynthFunction.get())
+        if self.BaseSynthFunction.get() == "sine":
+            # generate samples, note conversion to float32 array
+            samples = (np.sin(2 * np.pi * np.arange(fs * duration) * f / fs)).astype(np.float32)
+        if self.BaseSynthFunction.get() == "sqare":
+            samples = (np.sin(2 * np.pi * np.arange(fs * duration) * f / fs)).astype(np.float32)
+            for i, el in enumerate(samples):
+                if el > 0:
+                    samples[i] = 1
+                if el < 0:
+                    samples[i] = -1
+
+        if self.BaseSynthFunction.get() == "triangle":
+            samples = ((2 * np.arcsin(np.sin(2 * np.pi * np.arange(fs * duration) * f / fs))) / np.pi).astype(np.float32)
+
+        if self.BaseSynthFunction.get() == "saw":
+            samples = (-((2 * np.arctan(1/(np.tan(np.pi * np.arange(fs * duration) * f / fs)))) / np.pi)).astype(
+                np.float32)
+        return samples
+    def getBaseFrequency(self,key,O):
+        oArray = -4,-3,-2,-1,0,1,2,3,4,5
+        nArray = (-9/12),(-8/12),(-7/12),(-6/12),(-5/12),(-4/12),(-3/12),(-2/12),(-1/12),0,(1/12),(2/12),(3/12)
+        Ft = self.tFreq.get()
+        O = oArray[int(O)]
+        n = nArray[key]
+        baseFrequency = (float(2) ** (float(O) + float(n)))*float(Ft)
+        return baseFrequency
+    def playaudio(self,key,O,note = "1/4"):
+        BPM = 60
+        noteArray = "1","1/2","1/4","1/8","1/16"
+        noteArrayVal = 1,0.5,0.25,0.125,0.0625
+        for i in range(0,4):
+            if noteArray[i] == note:
+                duration = noteArrayVal[i] # in seconds, may be float
+        p = pyaudio.PyAudio()
+        volume = 0.2  # range [0.0, 1.0]
+        fs = 44100  # sampling rate, Hz, must be integer
+        f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
+        samples = self.waveType( fs, duration, f)
+
+        # for paFloat32 sample values must be in range [-1.0, 1.0]
+        stream = p.open(format=pyaudio.paFloat32,
+                        channels=1,
+                        rate=fs,
+                        output=True)
+
+        # play. May repeat with different volume values (if done interactively)
+        stream.write(volume * samples)
+
+        stream.stop_stream()
+        stream.close()
+
+        p.terminate()
+
 
 if __name__ == "__main__":
     root = Tk()
+
     Synth = Synthetizer(root)
+    #Synth.playaudio()
     root.mainloop()

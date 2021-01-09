@@ -1,1 +1,1 @@
-# Synthetizer
+# Synthesizer

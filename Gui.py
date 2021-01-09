@@ -392,7 +392,7 @@ class Synthetizer(Frame):
         n = nArray[key]
         baseFrequency = (float(2) ** (float(O) + float(n)))*float(Ft)
         return baseFrequency
-    def harmonic(self):
+    #def harmonic(self):
         
 
     def playaudio(self,key,O,flag, note = "1"):

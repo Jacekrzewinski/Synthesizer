@@ -6,6 +6,8 @@ import matplotlib
 import pyaudio
 import numpy as np
 from mpmath import *
+import matplotlib.pyplot as plt
+
 matplotlib.use("TkAgg")
 
 
@@ -15,7 +17,7 @@ class Synthetizer(Frame):
         self.parent = parent
         self.pack()
         self.make_widgets()
-        self.BPM = 120
+        self.BPM = 60
 
     def make_widgets(self):
         self.winfo_toplevel().title("Syntetizer GUI")
@@ -166,6 +168,7 @@ class Synthetizer(Frame):
 
     def PianoKeyCallback(self, key):
         # example can delete or modify
+        flag = 0
         O = self.KeyOctave.current();
         if key == 12:
             key = 0;
@@ -185,7 +188,14 @@ class Synthetizer(Frame):
             10: "Ais",
             11: "H",
         }
-        self.playaudio(key,O)
+        if self.AmpModOption.current() != 0 or self.AmpModFreq.get() != "0" or self.AmpModAmp.get() != "0":
+            flag = flag +1
+            print("AmpMod On")
+        if self.FreqModOption.current() != 0 or self.FreqModFreq.get() != "0" or self.FreqModAmp.get() != "0":
+            flag = flag +2
+            print("FreqMod On")
+
+        self.playaudio(key,O,flag)
 
         print(switcher.get(key) + str(O))
 
@@ -229,6 +239,151 @@ class Synthetizer(Frame):
             samples = (-((2 * np.arctan(1/(np.tan(np.pi * np.arange(fs * duration) * f / fs)))) / np.pi)).astype(
                 np.float32)
         return samples
+    def amplitudeModulation(self,samples,fs,duration):
+        values = ["none", "sine", "sqare", "triangle", "saw"]
+        Option = self.AmpModOption.get()
+        if self.AmpModAmp.get() != 0:
+            Amod = 1 - float(self.AmpModAmp.get())
+        else:
+            Amod = 1
+
+        if self.AmpModFreq.get() != 0:
+            Fmod = float(self.AmpModFreq.get())
+        else:
+            Fmod = float(self.tFreq.get())
+
+        if Option == values[0]:
+            Option = self.BaseSynthFunction.get()
+
+        if Option == values[1]:
+            mSamples = (np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs)).astype(np.float32)
+            mSamples = [el * Amod for el in mSamples]
+            retVal = [i*j for i, j in zip(samples, mSamples)]
+            retVal = np.array(retVal, dtype=np.float32)
+            # plt.subplot(3, 1, 1)
+            # plt.title('Frequency Modulation')
+            # plt.plot(mSamples)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('mSamples')
+            # plt.subplot(3, 1, 2)
+            # plt.plot(samples)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('samples')
+            # plt.subplot(3, 1, 3)
+            # plt.plot(retVal)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('retVal')
+            # plt.show()
+            return retVal
+        if Option == values[2]:
+            mSamples = (np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs)).astype(np.float32)
+            mSamples = [el * Amod for el in mSamples]
+            for i, el in enumerate(mSamples):
+                if el > 0:
+                    mSamples[i] = 1
+                if el < 0:
+                    mSamples[i] = -1
+            retVal = [i * j for i, j in zip(samples, mSamples)]
+            retVal = np.array(retVal, dtype=np.float32)
+            return retVal
+        if Option == values[3]:
+            mSamples = ((2 * np.arcsin(np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs))) / np.pi).astype(
+                np.float32)
+            mSamples = [el * Amod for el in mSamples]
+            retVal = [i * j for i, j in zip(samples, mSamples)]
+            retVal = np.array(retVal, dtype=np.float32)
+            return retVal
+        if Option == values[4]:
+            mSamples = (-((2 * np.arctan(1 / (np.tan(np.pi * np.arange(fs * duration) * Fmod / fs)))) / np.pi)).astype(
+                np.float32)
+            mSamples = [el * Amod for el in mSamples]
+            retVal = [i * j for i, j in zip(samples, mSamples)]
+            retVal = np.array(retVal, dtype=np.float32)
+            return retVal
+    def frequencyModulation(self):
+        values = ["none", "sine", "sqare", "triangle", "saw"]
+        Option = self.FreqModOption.get()
+        if self.FreqModAmp.get() != 0:
+            Amod = float(self.FreqModAmp.get())
+        else:
+            Amod = 1
+
+        if self.FreqModFreq.get() != 0:
+            Fmod = float(self.FreqModFreq.get())
+        else:
+            Fmod = float(self.tFreq.get())
+
+        if Option == values[0]:
+            Option = self.BaseSynthFunction.get()
+        if Option == values[1]:
+            time = np.arange(44100.0) / 44100.0
+            modulator_frequency = float(self.FreqModFreq.get())
+            modulator = (np.sin(2.0 * np.pi * modulator_frequency * time) * Amod) + float(self.tFreq.get())
+            sum = 0
+            for i in range(0,len(modulator)):
+                sum = sum+ (modulator[i]/44100)
+            product = np.zeros_like(modulator)
+
+            for i, t in enumerate(time):
+                product[i] = np.sin(2. * np.pi * (sum * t + modulator[i]))
+            # plt.subplot(3, 1, 1)
+            # plt.title('Frequency Modulation')
+            # plt.plot(modulator)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('Modulator signal')
+            # plt.subplot(3, 1, 2)
+            # plt.plot(samples)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('Carrier signal')
+            # plt.subplot(3, 1, 3)
+            # plt.plot(product)
+            # plt.ylabel('Amplitude')
+            # plt.xlabel('Output signal')
+            # plt.show()
+            product = np.array(product, dtype=np.float32)
+            return product
+        if Option == values[2]:
+            time = np.arange(44100.0) / 44100.0
+            modulator_frequency = float(self.FreqModFreq.get())
+            modulator = (np.sin(2.0 * np.pi * modulator_frequency * time) * Amod)
+            for i, el in enumerate(modulator):
+                if el > 0:
+                    modulator[i] = 1
+                if el < 0:
+                    modulator[i] = -1
+            modulator = [el + float(self.tFreq.get()) for el in modulator]
+            sum = 0
+            for i in range(0,len(modulator)):
+                sum = sum + (modulator[i]/44100)
+            product = np.zeros_like(modulator)
+            for i, t in enumerate(time):
+                product[i] = np.sin(2. * np.pi * (sum * t + modulator[i]))
+            product = np.array(product, dtype=np.float32)
+            return product
+        if Option == values[3]:
+            time = np.arange(44100.0) / 44100.0
+            modulator_frequency = float(self.FreqModFreq.get())
+            modulator = ((2 * np.arcsin(np.sin(2 * np.pi * modulator_frequency * time)))* Amod / np.pi)+ float(self.tFreq.get())
+            sum = 0
+            for i in range(0, len(modulator)):
+                sum = sum + (modulator[i] / 44100)
+            product = np.zeros_like(modulator)
+            for i, t in enumerate(time):
+                product[i] = ((2 * np.arcsin(np.sin(2 * np.pi * (sum * t + modulator[i])))) / np.pi)
+            product = np.array(product, dtype=np.float32)
+            return product
+        if Option == values[4]:
+            time = np.arange(44100.0) / 44100.0
+            modulator_frequency = float(self.FreqModFreq.get())
+            modulator = (-((2 * np.arctan(1 / (np.tan(np.pi * modulator_frequency * time)))) * Amod / np.pi))+ float(self.tFreq.get())
+            sum = 0
+            for i in range(0, len(modulator)):
+                sum = sum + (modulator[i] / 44100)
+            product = np.zeros_like(modulator)
+            for i, t in enumerate(time):
+                product[i] = (-((2 * np.arctan(1 / (np.tan(np.pi * (sum * t + modulator[i]))))) / np.pi))
+            product = np.array(product, dtype=np.float32)
+            return product
     def getBaseFrequency(self,key,O):
         oArray = -4,-3,-2,-1,0,1,2,3,4,5
         nArray = (-9/12),(-8/12),(-7/12),(-6/12),(-5/12),(-4/12),(-3/12),(-2/12),(-1/12),0,(1/12),(2/12),(3/12)
@@ -237,18 +392,29 @@ class Synthetizer(Frame):
         n = nArray[key]
         baseFrequency = (float(2) ** (float(O) + float(n)))*float(Ft)
         return baseFrequency
-    def playaudio(self,key,O,note = "1/4"):
-        BPM = 60
+    def harmonic(self):
+        
+
+    def playaudio(self,key,O,flag, note = "1"):
         noteArray = "1","1/2","1/4","1/8","1/16"
-        noteArrayVal = 1,0.5,0.25,0.125,0.0625
+        noteArrayVal = float(60/self.BPM),float(30/self.BPM),float(15/self.BPM),float(7.5/self.BPM),float(3.75/self.BPM)
         for i in range(0,4):
             if noteArray[i] == note:
                 duration = noteArrayVal[i] # in seconds, may be float
         p = pyaudio.PyAudio()
-        volume = 0.2  # range [0.0, 1.0]
-        fs = 44100  # sampling rate, Hz, must be integer
+        volume = 0.7  # range [0.0, 1.0]
+        fs = 44100  # sampling rate, Hz, integer
         f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
         samples = self.waveType( fs, duration, f)
+        if flag == 1:
+            samples = self.amplitudeModulation( samples, fs, duration)
+        if flag == 2:
+            samples = self.frequencyModulation()
+        if flag == 3:
+            samples1 = self.amplitudeModulation(samples, fs, duration)
+            samples2 = self.frequencyModulation()
+            samples = [i*j for i, j in zip(samples1, samples2)]
+            samples = np.array(samples, dtype=np.float32)
 
         # for paFloat32 sample values must be in range [-1.0, 1.0]
         stream = p.open(format=pyaudio.paFloat32,
@@ -257,6 +423,7 @@ class Synthetizer(Frame):
                         output=True)
 
         # play. May repeat with different volume values (if done interactively)
+        #samples = [el * volume for el in samples]
         stream.write(volume * samples)
 
         stream.stop_stream()

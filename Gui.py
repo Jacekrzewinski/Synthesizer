@@ -7,7 +7,7 @@ import pyaudio
 import numpy as np
 from mpmath import *
 import matplotlib.pyplot as plot
-
+import csv
 matplotlib.use("TkAgg")
 
 
@@ -214,7 +214,7 @@ class Synthetizer(Frame):
         self.canvas.draw()
 
     def fbutton1(self):
-        print(self.BPM)
+        self.playFromFile()
 
     def fbutton2(self):
         print('button2')
@@ -385,6 +385,9 @@ class Synthetizer(Frame):
             product = np.array(product, dtype=np.float32)
             return product
     def getBaseFrequency(self,key,O):
+        if key == 12:
+            baseFrequency = 0.
+            return baseFrequency
         oArray = -4,-3,-2,-1,0,1,2,3,4,5
         nArray = (-9/12),(-8/12),(-7/12),(-6/12),(-5/12),(-4/12),(-3/12),(-2/12),(-1/12),0,(1/12),(2/12),(3/12)
         Ft = self.tFreq.get()
@@ -453,6 +456,19 @@ class Synthetizer(Frame):
         retVal = product * samples
         retVal = np.array(retVal, dtype=np.float32)
         return retVal
+    def playFromFile(self):
+        keytable = ["c","cis","d","dis","e","f","fis","g","gis","a","ais","h","p"]
+        with open('plik1.csv', newline='') as csvfile:
+            spamreader = csv.reader(csvfile, delimiter=',')
+            for row in spamreader:
+                print(row)
+                for i in range(0,len(keytable)):
+                    if keytable[i] == row[1]:
+                        print(keytable[i])
+                        key = i
+                        self.playaudio( key, int(row[2]), 0,row[0])
+                        i = i+1
+                        break
     def playaudio(self,key,O,flag, note = "1"):
         noteArray = "1","1/2","1/4","1/8","1/16"
         noteArrayVal = float(60/self.BPM),float(30/self.BPM),float(15/self.BPM),float(7.5/self.BPM),float(3.75/self.BPM)
@@ -460,7 +476,7 @@ class Synthetizer(Frame):
             if noteArray[i] == note:
                 duration = noteArrayVal[i] # in seconds, may be float
         p = pyaudio.PyAudio()
-        volume = 0.3  # range [0.0, 1.0]
+        #volume = 0.3  # range [0.0, 1.0] / ADSR instead
         fs = 44100  # sampling rate, Hz, integer
         f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
         samples = self.getInstrument(fs, duration, f)

@@ -428,7 +428,31 @@ class Synthetizer(Frame):
         if self.Instrument.current() == 2:        #violin
             samples = self.harmonic("violin", fs, duration, f)
             return samples
-
+    def ADSR(self,samples):
+        A = float(self.ADSR_A.get())
+        D = float(self.ADSR_D.get())
+        S = int(self.ADSR_S.get())
+        R = float(self.ADSR_R.get())
+        product = np.zeros_like(samples)
+        A_len = int(len(samples) * A)
+        D_len = int(len(samples) * D)
+        R_len = int(len(samples) * R)
+        S_len = int(len(samples) - (A_len+D_len+R_len))
+        sum = 0
+        for i in range(0,A_len):
+            sum = sum + (100/A_len)/100
+            product[i] = sum
+        for i in range(A_len, A_len + D_len):
+            sum = sum - ((100-S)/D_len)/100
+            product[i] = sum
+        for i in range(A_len + D_len, A_len + D_len + S_len):
+            product[i] = S/100
+        for i in range(A_len + D_len + S_len, A_len + D_len + S_len+R_len):
+            sum = sum - (S / D_len) / 100
+            product[i] = sum
+        retVal = product * samples
+        retVal = np.array(retVal, dtype=np.float32)
+        return retVal
     def playaudio(self,key,O,flag, note = "1"):
         noteArray = "1","1/2","1/4","1/8","1/16"
         noteArrayVal = float(60/self.BPM),float(30/self.BPM),float(15/self.BPM),float(7.5/self.BPM),float(3.75/self.BPM)
@@ -436,7 +460,7 @@ class Synthetizer(Frame):
             if noteArray[i] == note:
                 duration = noteArrayVal[i] # in seconds, may be float
         p = pyaudio.PyAudio()
-        volume = 0.7  # range [0.0, 1.0]
+        volume = 0.3  # range [0.0, 1.0]
         fs = 44100  # sampling rate, Hz, integer
         f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
         samples = self.getInstrument(fs, duration, f)
@@ -450,7 +474,7 @@ class Synthetizer(Frame):
             samples2 = self.frequencyModulation()
             samples = [i*j for i, j in zip(samples1, samples2)]
             samples = np.array(samples, dtype=np.float32)
-        # samples = self.harmonic("violin",fs,duration,f)
+
         # for paFloat32 sample values must be in range [-1.0, 1.0]
         stream = p.open(format=pyaudio.paFloat32,
                         channels=1,
@@ -458,8 +482,8 @@ class Synthetizer(Frame):
                         output=True)
 
         # play. May repeat with different volume values (if done interactively)
-        #samples = [el * volume for el in samples]
-        stream.write(volume * samples)
+        samples = self.ADSR(samples)
+        stream.write(samples)
 
         stream.stop_stream()
         stream.close()

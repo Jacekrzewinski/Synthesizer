@@ -6,7 +6,7 @@ import matplotlib
 import pyaudio
 import numpy as np
 from mpmath import *
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plot
 
 matplotlib.use("TkAgg")
 
@@ -72,7 +72,7 @@ class Synthetizer(Frame):
         self.BaseSynthFunction.grid(row=1, column=1)
         self.BaseSynthFunction.current(0)
         Label(self.SynthSetFrame, text="Choose instrument:").grid(row=2, column=0, sticky=NE)
-        self.Instrument = ttk.Combobox(self.SynthSetFrame, values=["pure tone"])
+        self.Instrument = ttk.Combobox(self.SynthSetFrame, values=["pure tone","Piano","Violin"])
         self.Instrument.grid(row=2, column=1)
         self.Instrument.current(0)
 
@@ -392,8 +392,42 @@ class Synthetizer(Frame):
         n = nArray[key]
         baseFrequency = (float(2) ** (float(O) + float(n)))*float(Ft)
         return baseFrequency
-    #def harmonic(self):
-        
+    def harmonic(self,instrument,fs,duration,f):
+        if instrument == "piano":
+            pianoH = [-15., -15.9, -33.9, -30.7, -53.5, -29.7, -43.3, -40.6, -40.5,
+                      -46.5, -48.5,-48.9,-61.9,-48.9,-65.9,-64.2,-69.5]
+            pianoA = np.zeros_like(pianoH)
+            for i in range(0, len(pianoH)):
+                pianoA[i] = 10 ** (pianoH[i] / 20)
+            samples = self.waveType(fs, duration, f)
+            product = np.zeros_like(samples)
+            for i in range(1,len(pianoA)+1):
+                temp = (pianoA[i-1] * self.waveType(fs, duration, (i*f)))/len(pianoA)
+                product = product + temp
+            product = np.array(product, dtype=np.float32)
+        if instrument == "violin":
+            violinH = [-10.3, -17.9, -18.9, -24.7, -21.7, -24.6, -31.5, -27., -26.4,
+                      -51.8, -45.8,-38.6,-51.1,-41.9,-47.9,-44.9,-48.8,-51.7,-58.9]
+            violinA = np.zeros_like(violinH)
+            for i in range(0, len(violinH)):
+                violinA[i] = 10 ** (violinH[i] / 20)
+            samples = self.waveType(fs, duration, f)
+            product = np.zeros_like(samples)
+            for i in range(1, len(violinA) + 1):
+                temp = (violinA[i - 1] * self.waveType(fs, duration, (i * f))) / len(violinA)
+                product = product + temp
+            product = np.array(product, dtype=np.float32)
+        return product
+    def getInstrument(self,fs, duration, f):
+        if self.Instrument.current() == 0:        #pure tone
+            samples = self.waveType(fs, duration, f)
+            return samples
+        if self.Instrument.current() == 1:        #piano
+            samples = self.harmonic("piano", fs, duration, f)
+            return samples
+        if self.Instrument.current() == 2:        #violin
+            samples = self.harmonic("violin", fs, duration, f)
+            return samples
 
     def playaudio(self,key,O,flag, note = "1"):
         noteArray = "1","1/2","1/4","1/8","1/16"
@@ -405,7 +439,8 @@ class Synthetizer(Frame):
         volume = 0.7  # range [0.0, 1.0]
         fs = 44100  # sampling rate, Hz, integer
         f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
-        samples = self.waveType( fs, duration, f)
+        samples = self.getInstrument(fs, duration, f)
+
         if flag == 1:
             samples = self.amplitudeModulation( samples, fs, duration)
         if flag == 2:
@@ -415,7 +450,7 @@ class Synthetizer(Frame):
             samples2 = self.frequencyModulation()
             samples = [i*j for i, j in zip(samples1, samples2)]
             samples = np.array(samples, dtype=np.float32)
-
+        # samples = self.harmonic("violin",fs,duration,f)
         # for paFloat32 sample values must be in range [-1.0, 1.0]
         stream = p.open(format=pyaudio.paFloat32,
                         channels=1,
@@ -436,5 +471,5 @@ if __name__ == "__main__":
     root = Tk()
 
     Synth = Synthetizer(root)
-    #Synth.playaudio()
+    #Synth.harmonic("sad")
     root.mainloop()

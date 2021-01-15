@@ -6,10 +6,10 @@ import matplotlib
 import pyaudio
 import numpy as np
 from mpmath import *
-import matplotlib.pyplot as plot
+import matplotlib.pyplot as plt
 import csv
 matplotlib.use("TkAgg")
-
+import threading
 
 class Synthetizer(Frame):
     def __init__(self, parent=None):
@@ -18,11 +18,24 @@ class Synthetizer(Frame):
         self.pack()
         self.make_widgets()
         self.BPM = 60
+        self.fs = 44100
+        self.press = False
+    def check(self):
+        if self.press == True:
+            self.PianoKeyCallback(0)
+        t = threading.Timer(0.2,self.check)
+        t.start()
+
+    def pressed(self,event):
+        self.press = True
+        print("tak")
+    def notPressed(self,event):
+        self.press = False
+        print("nie")
 
     def make_widgets(self):
         self.winfo_toplevel().title("Syntetizer GUI")
         # self.winfo_toplevel().geometry("800x600")
-
         # Frequency modulation
         self.FreqModFrame = LabelFrame(self, text="Frequency Modulation")
         self.FreqModFrame.grid(row=0, column=0, columnspan=5, rowspan=5)
@@ -114,9 +127,9 @@ class Synthetizer(Frame):
 
         self.paintADSR()
         #
-        self.button1 = Button(self, text="Button1", command=lambda: self.fbutton1())
+        self.button1 = Button(self, text="Play Cicha Noc", command=lambda: self.fbutton1())
         self.button1.grid(row=6, column=14)
-        self.button2 = Button(self, text="Button2", command=lambda: self.fbutton2())
+        self.button2 = Button(self, text="Kawałek Wśród Nocnej Ciszy", command=lambda: self.fbutton2())
         self.button2.grid(row=7, column=14)
 
         # keyboard
@@ -128,6 +141,8 @@ class Synthetizer(Frame):
         self.KeyOctave.grid(row=0, column=4, columnspan=4)
         self.KeyC = Button(self.Keyboard, width=10, height=15, bg='white', command=lambda: self.PianoKeyCallback(0),
                            text="C", fg='black', anchor='s')
+        self.KeyC.bind('<ButtonPress-1>',self.pressed)
+        self.KeyC.bind('<ButtonRelease-1>',self.notPressed)
         self.KeyC.grid(row=1, column=0, rowspan=3, columnspan=4)
         self.KeyCis = Button(self.Keyboard, width=5, height=10, bg='black', command=lambda: self.PianoKeyCallback(1),
                              text="Cis", fg='white', anchor='s')
@@ -214,10 +229,10 @@ class Synthetizer(Frame):
         self.canvas.draw()
 
     def fbutton1(self):
-        self.playFromFile()
+        self.playFromFile('plik1.csv')
 
     def fbutton2(self):
-        print('button2')
+        self.playFromFile('plik2.csv')
 
     def waveType(self, fs, duration, f):
         print(self.BaseSynthFunction.get())
@@ -243,7 +258,7 @@ class Synthetizer(Frame):
         values = ["none", "sine", "sqare", "triangle", "saw"]
         Option = self.AmpModOption.get()
         if self.AmpModAmp.get() != 0:
-            Amod = 1 - float(self.AmpModAmp.get())
+            Amod = float(self.AmpModAmp.get())
         else:
             Amod = 1
 
@@ -257,46 +272,32 @@ class Synthetizer(Frame):
 
         if Option == values[1]:
             mSamples = (np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs)).astype(np.float32)
-            mSamples = [el * Amod for el in mSamples]
+            mSamples = Amod * mSamples + (1-Amod)
             retVal = [i*j for i, j in zip(samples, mSamples)]
             retVal = np.array(retVal, dtype=np.float32)
-            # plt.subplot(3, 1, 1)
-            # plt.title('Frequency Modulation')
-            # plt.plot(mSamples)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('mSamples')
-            # plt.subplot(3, 1, 2)
-            # plt.plot(samples)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('samples')
-            # plt.subplot(3, 1, 3)
-            # plt.plot(retVal)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('retVal')
-            # plt.show()
             return retVal
         if Option == values[2]:
             mSamples = (np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs)).astype(np.float32)
-            mSamples = [el * Amod for el in mSamples]
             for i, el in enumerate(mSamples):
                 if el > 0:
                     mSamples[i] = 1
                 if el < 0:
                     mSamples[i] = -1
+            mSamples = Amod * mSamples + (1 - Amod)
             retVal = [i * j for i, j in zip(samples, mSamples)]
             retVal = np.array(retVal, dtype=np.float32)
             return retVal
         if Option == values[3]:
             mSamples = ((2 * np.arcsin(np.sin(2 * np.pi * np.arange(fs * duration) * Fmod / fs))) / np.pi).astype(
                 np.float32)
-            mSamples = [el * Amod for el in mSamples]
+            mSamples = Amod * mSamples + (1-Amod)
             retVal = [i * j for i, j in zip(samples, mSamples)]
             retVal = np.array(retVal, dtype=np.float32)
             return retVal
         if Option == values[4]:
             mSamples = (-((2 * np.arctan(1 / (np.tan(np.pi * np.arange(fs * duration) * Fmod / fs)))) / np.pi)).astype(
                 np.float32)
-            mSamples = [el * Amod for el in mSamples]
+            mSamples = Amod * mSamples + (1-Amod)
             retVal = [i * j for i, j in zip(samples, mSamples)]
             retVal = np.array(retVal, dtype=np.float32)
             return retVal
@@ -317,29 +318,11 @@ class Synthetizer(Frame):
             Option = self.BaseSynthFunction.get()
         if Option == values[1]:
             time = np.arange(44100.0) / 44100.0
+
             modulator_frequency = float(self.FreqModFreq.get())
             modulator = (np.sin(2.0 * np.pi * modulator_frequency * time) * Amod) + float(self.tFreq.get())
-            sum = 0
-            for i in range(0,len(modulator)):
-                sum = sum+ (modulator[i]/44100)
             product = np.zeros_like(modulator)
-
-            for i, t in enumerate(time):
-                product[i] = np.sin(2. * np.pi * (sum * t + modulator[i]))
-            # plt.subplot(3, 1, 1)
-            # plt.title('Frequency Modulation')
-            # plt.plot(modulator)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('Modulator signal')
-            # plt.subplot(3, 1, 2)
-            # plt.plot(samples)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('Carrier signal')
-            # plt.subplot(3, 1, 3)
-            # plt.plot(product)
-            # plt.ylabel('Amplitude')
-            # plt.xlabel('Output signal')
-            # plt.show()
+            product = np.sin(2. * np.pi * ((np.cumsum(modulator))/44100))
             product = np.array(product, dtype=np.float32)
             return product
         if Option == values[2]:
@@ -352,36 +335,26 @@ class Synthetizer(Frame):
                 if el < 0:
                     modulator[i] = -1
             modulator = [el + float(self.tFreq.get()) for el in modulator]
-            sum = 0
-            for i in range(0,len(modulator)):
-                sum = sum + (modulator[i]/44100)
             product = np.zeros_like(modulator)
-            for i, t in enumerate(time):
-                product[i] = np.sin(2. * np.pi * (sum * t + modulator[i]))
+            product = np.sin(2. * np.pi * ((np.cumsum(modulator))/44100))
             product = np.array(product, dtype=np.float32)
             return product
         if Option == values[3]:
             time = np.arange(44100.0) / 44100.0
             modulator_frequency = float(self.FreqModFreq.get())
             modulator = ((2 * np.arcsin(np.sin(2 * np.pi * modulator_frequency * time)))* Amod / np.pi)+ float(self.tFreq.get())
-            sum = 0
-            for i in range(0, len(modulator)):
-                sum = sum + (modulator[i] / 44100)
             product = np.zeros_like(modulator)
-            for i, t in enumerate(time):
-                product[i] = ((2 * np.arcsin(np.sin(2 * np.pi * (sum * t + modulator[i])))) / np.pi)
+
+            product = (2 * np.arcsin(np.sin(2 * np.pi * (np.cumsum(modulator))/44100)) / np.pi)
             product = np.array(product, dtype=np.float32)
             return product
         if Option == values[4]:
             time = np.arange(44100.0) / 44100.0
             modulator_frequency = float(self.FreqModFreq.get())
             modulator = (-((2 * np.arctan(1 / (np.tan(np.pi * modulator_frequency * time)))) * Amod / np.pi))+ float(self.tFreq.get())
-            sum = 0
-            for i in range(0, len(modulator)):
-                sum = sum + (modulator[i] / 44100)
             product = np.zeros_like(modulator)
-            for i, t in enumerate(time):
-                product[i] = (-((2 * np.arctan(1 / (np.tan(np.pi * (sum * t + modulator[i]))))) / np.pi))
+
+            product = (-((2 * np.arctan(1 / (np.tan(np.pi * (np.cumsum(modulator)))))) / np.pi))
             product = np.array(product, dtype=np.float32)
             return product
     def getBaseFrequency(self,key,O):
@@ -456,9 +429,9 @@ class Synthetizer(Frame):
         retVal = product * samples
         retVal = np.array(retVal, dtype=np.float32)
         return retVal
-    def playFromFile(self):
+    def playFromFile(self,name):
         keytable = ["c","cis","d","dis","e","f","fis","g","gis","a","ais","h","p"]
-        with open('plik1.csv', newline='') as csvfile:
+        with open(name, newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',')
             for row in spamreader:
                 print(row)
@@ -477,16 +450,16 @@ class Synthetizer(Frame):
                 duration = noteArrayVal[i] # in seconds, may be float
         p = pyaudio.PyAudio()
         #volume = 0.3  # range [0.0, 1.0] / ADSR instead
-        fs = 44100  # sampling rate, Hz, integer
+
         f = self.getBaseFrequency(key,O)  # sine frequency, Hz, may be float
-        samples = self.getInstrument(fs, duration, f)
+        samples = self.getInstrument(self.fs, duration, f)
 
         if flag == 1:
-            samples = self.amplitudeModulation( samples, fs, duration)
+            samples = self.amplitudeModulation( samples, self.fs, duration)
         if flag == 2:
             samples = self.frequencyModulation()
         if flag == 3:
-            samples1 = self.amplitudeModulation(samples, fs, duration)
+            samples1 = self.amplitudeModulation(samples, self.fs, duration)
             samples2 = self.frequencyModulation()
             samples = [i*j for i, j in zip(samples1, samples2)]
             samples = np.array(samples, dtype=np.float32)
@@ -494,7 +467,7 @@ class Synthetizer(Frame):
         # for paFloat32 sample values must be in range [-1.0, 1.0]
         stream = p.open(format=pyaudio.paFloat32,
                         channels=1,
-                        rate=fs,
+                        rate=self.fs,
                         output=True)
 
         # play. May repeat with different volume values (if done interactively)
@@ -511,5 +484,5 @@ if __name__ == "__main__":
     root = Tk()
 
     Synth = Synthetizer(root)
-    #Synth.harmonic("sad")
+    Synth.check()
     root.mainloop()
